@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>เครื่องรดน้ำต้นไม้อัตโนมัติ 2 ถัง 3D</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:#1a1f26;color:#eceff2;font-family:"Noto Sans Thai",system-ui,sans-serif;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+.p{position:fixed;background:rgba(20,24,30,.9);border:1px solid #333b45;border-radius:12px;padding:10px 12px;font-size:.82rem}
+#top{left:8px;right:8px;top:calc(8px + env(safe-area-inset-top,0px));display:flex;flex-wrap:wrap;gap:6px;background:none;border:0;padding:0}
+button{background:#2e7d32;color:#fff;border:0;border-radius:8px;padding:7px 11px;font:inherit;font-weight:600}
+button.off{background:#444b54}
+#st{left:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:min(330px,calc(100% - 16px))}
+input[type=range]{width:100%}
+.bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin:3px 0 6px}
+.bar i{display:block;height:100%;width:0}
+.row{display:flex;justify-content:space-between;gap:8px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="p" id="top">
+  <button id="bLab">ป้ายชื่อ</button>
+  <button id="bSp" class="off">ความเร็ว ×1</button>
+  <button id="bRf" class="off">เติมน้ำ/ปุ๋ย</button>
+</div>
+<div class="p" id="st">
+  <div class="row"><span>ความชื้นดิน (A0)</span><b id="mv"></b></div>
+  <div class="bar"><i id="mb" style="background:#8d6e63"></i></div>
+  <input id="sl" type="range" min="0" max="100" value="40">
+  <div class="row"><span>ตรวจทุก 4 วิ · รดเมื่อ &lt; 50%</span><b id="nx"></b></div>
+  <div class="row"><span>สถานะ</span><b id="state"></b></div>
+  <div class="row"><span>นับรดน้ำ (เฉพาะถังน้ำ)</span><b id="cnt"></b></div>
+  <div class="row"><span>ถังน้ำ <b id="l1"></b></span><span>ถังปุ๋ย <b id="l2"></b></span></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const cv=document.getElementById('c'),R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new THREE.Scene();S.background=new THREE.Color(0x1a1f26);
+const cam=new THREE.PerspectiveCamera(45,1,.1,400);
+S.add(new THREE.HemisphereLight(0xffffff,0x334455,.85));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(30,60,40);S.add(dl);
+const G=new THREE.Group();S.add(G);
+const M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.6},o));
+const box=(w,h,d,c,x,y,z,p=G,o)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c,o));m.position.set(x,y,z);p.add(m);return m};
+const cyl=(r,h,c,x,y,z,p=G,o)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,20),M(c,o));m.position.set(x,y,z);p.add(m);return m};
+const labels=new THREE.Group();G.add(labels);
+function label(t,x,y,z){const c=document.createElement('canvas');c.width=420;c.height=64;const g=c.getContext('2d');
+  g.fillStyle='rgba(0,0,0,.65)';g.fillRect(0,0,420,64);g.fillStyle='#fff';g.font='bold 28px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(t,210,34);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));s.scale.set(13,2,1);s.position.set(x,y,z);labels.add(s)}
+box(90,.4,70,0x232a33,0,-.2,0);
+const glass={transparent:true,opacity:.2,roughness:.2};
+const H=22.3,W=13.8;
+
+// Tanks
+function tank(x,col,pumpCol){
+  box(W,H,W,0xaab8c6,x,H/2,0,G,glass);
+  const lv=box(W-.6,H-1,W-.6,col,x,.5,0,G,{transparent:true,opacity:.55});lv.geometry.translate(0,(H-1)/2,0);lv.position.y=.5;
+  box(W+.4,.5,W+.4,0xb7c0ca,x,H+.25,0,G,glass);
+  cyl(.7,.2,0x222,x,H+.6,0);
+  cyl(1.6,2.8,0x333,x,2,0);cyl(.4,H-1,0x777,x,H/2,0).material.opacity=1;
+  return lv}
+const t1=tank(-12,0x2f9be8),t2=tank(12,0x66bb6a);
+// Pot, plant
+const potG=new THREE.Group();potG.position.set(0,0,10);G.add(potG);
+const pot=new THREE.Mesh(new THREE.CylinderGeometry(6,4.5,5,24),M(0x8d5a3b));pot.position.y=2.5;potG.add(pot);
+const soil=cyl(5.6,.3,0x4e342e,0,5,0,potG);
+cyl(.35,14,0x2e5d2e,0,12,0,potG);
+const leaves=new THREE.Group();leaves.position.y=9;potG.add(leaves);
+for(let i=0;i<8;i++){const l=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),M(0x2e8b3a));l.scale.set(3.2,.35,1.2);const a=i*.8;l.position.set(Math.cos(a)*2.6,i*.7,Math.sin(a)*2.6);l.rotation.y=-a;l.rotation.z=.25;leaves.add(l)}
+box(.7,6.5,.25,0x111,3,2.2,0,potG);box(.9,.3,.5,0xd4af37,3,-.9,0,potG);
+// Control box 14x14x7 + LED + charger pack
+const bx=box(14,7,14,0x7b838c,10,3.5,-18);
+box(13,.2,13,0xb0b8c0,10,7.1,-18);
+const ledW=cyl(.5,.3,0x103a6b,6.5,7.4,-15,G,{emissive:0});const ledF=cyl(.5,.3,0x14421a,8.2,7.4,-15,G,{emissive:0});
+box(3,2.6,3.6,0x111,17.5,3.5,-18);
+// Tubes
+const tube=(pts,col)=>{const c=new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p)));const m=new THREE.Mesh(new THREE.TubeGeometry(c,50,.6,8),M(col,{transparent:true,opacity:.8}));G.add(m);return[m,c]};
+const[m1,c1]=tube([[-12,H+.6,0],[-12,H+9,0],[-9,H+9,4],[-3,15,9],[-1,8,10]],0x4fc3f7);
+const[m2,c2]=tube([[12,H+.6,0],[12,H+9,0],[9,H+9,4],[3,16,9],[1.5,8,10]],0x81c784);
+const sw=new THREE.CatmullRomCurve3([[3,4,10],[7,3,-4],[9,5,-12],[7,7.5,-15]].map(p=>new THREE.Vector3(...p)));
+G.add(new THREE.Mesh(new THREE.TubeGeometry(sw,30,.12,6),M(0x111)));
+label('1 ถังน้ำเปล่า + ปั๊ม 1',-12,H+14,0);label('4 ถังปุ๋ย + ปั๊ม 2',12,H+14,0);
+label('8 กระถาง + ต้นไม้',0,22,10);label('9 เซนเซอร์ → A0',-8,3,18);label('10 กล่องวงจร 14×14×7',10,13,-18);label('11 ชุดจ่ายไฟ 18650',18,8,-18);
+const parts=[];for(let i=0;i<26;i++){const s=new THREE.Mesh(new THREE.SphereGeometry(.45,8,6),M(0xffffff,{emissive:0x335577}));s.visible=false;G.add(s);parts.push(s)}
+
+// Simulation
+let moist=40,sp=1,cnt=0,lv1=1,lv2=1,tick=0,run=0,which=1;
+const $=id=>document.getElementById(id);
+function check(){
+  if(moist<50){ which=cnt>=10?2:1; run=2;
+    if(which===1)cnt++;else cnt=0 }
+}
+function sim(dt){
+  tick+=dt;if(tick>=4){tick-=4;check()}
+  if(run>0){const d=Math.min(dt,run);run-=d;moist=Math.min(100,moist+4*d);
+    if(which===1)lv1=Math.max(0,lv1-.012*d);else lv2=Math.max(0,lv2-.012*d)}
+  moist=Math.max(0,moist-.8*dt);
+}
+$('sl').oninput=e=>{moist=+e.target.value};
+$('bLab').onclick=e=>{labels.visible=!labels.visible;e.target.className=labels.visible?'':'off'};
+$('bSp').onclick=e=>{sp=sp==1?5:sp==5?20:1;e.target.textContent='ความเร็ว ×'+sp};
+$('bRf').onclick=()=>{lv1=lv2=1};
+
+let yaw=.6,pit=.6,dist=110;const pts=new Map();
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY])});
+cv.addEventListener('pointermove',e=>{const p=pts.get(e.pointerId);if(!p)return;
+  if(pts.size==1){yaw-=(e.clientX-p[0])*.008;pit=Math.max(.1,Math.min(1.5,pit+(e.clientY-p[1])*.008))}
+  else{const o=[...pts.entries()].find(([k])=>k!=e.pointerId)[1];dist=Math.max(30,Math.min(220,dist*Math.hypot(p[0]-o[0],p[1]-o[1])/Math.hypot(e.clientX-o[0],e.clientY-o[1])))}
+  pts.set(e.pointerId,[e.clientX,e.clientY])});
+cv.addEventListener('pointerup',e=>pts.delete(e.pointerId));
+cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(30,Math.min(220,dist*(1+e.deltaY*.001)))},{passive:false});
+function resize(){R.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+
+let last=performance.now();
+(function loop(now){requestAnimationFrame(loop);const dt=Math.min(.1,(now-last)/1000);last=now;
+  sim(dt*sp);const on=run>0;
+  t1.scale.y=Math.max(.001,lv1);t2.scale.y=Math.max(.001,lv2);
+  ledW.material.emissive.setHex(on&&which===1?0x2299ff:0);ledF.material.emissive.setHex(on&&which===2?0x33ff55:0);
+  const c=which===1?c1:c2;
+  parts.forEach((s,i)=>{s.visible=on;if(on){s.position.copy(c.getPoint(((now/700)+i/parts.length)%1));s.material.emissive.setHex(which===1?0x2266aa:0x226633)}});
+  soil.material.color.setRGB(.34-moist/500,.2-moist/800,.16);
+  leaves.rotation.x=(1-Math.min(1,moist/60))*.35;leaves.scale.y=.75+.25*Math.min(1,moist/60);
+  $('mv').textContent=moist.toFixed(0)+'%';$('mb').style.width=moist+'%';$('sl').value=moist;
+  $('nx').textContent='ตรวจอีก '+Math.ceil(4-tick)+' วิ';
+  $('cnt').textContent=cnt+' / 10'+(cnt>=10?' → รอบหน้าใช้ปุ๋ย':'');
+  $('l1').textContent=Math.round(lv1*100)+'%';$('l2').textContent=Math.round(lv2*100)+'%';
+  $('state').textContent=on?(which===1?'💧 ปั๊ม 1 รดน้ำ':'🌱 ปั๊ม 2 ให้ปุ๋ย'):moist>=50?'✅ ชื้นพอ':'🔍 รอรอบตรวจ';
+  cam.position.set(Math.sin(yaw)*Math.cos(pit)*dist,Math.sin(pit)*dist+8,Math.cos(yaw)*Math.cos(pit)*dist);cam.lookAt(0,10,0);R.render(S,cam)})(last);
+</script>
+</body>
+</html>
